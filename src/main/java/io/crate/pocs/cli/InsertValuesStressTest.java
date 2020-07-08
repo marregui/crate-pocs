@@ -3,7 +3,6 @@ package io.crate.pocs.cli;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.math.BigInteger;
 import java.sql.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -85,14 +84,12 @@ public class InsertValuesStressTest {
     public static void main(String[] args) throws Exception {
 
         int numThreads = 1;
-        int numValuesInInsert = 50_000; // batch size
-        long aproxRuntimeMillis = 30_000;
+        int numValuesInInsert = 20_000; // batch size
+        long aproxRuntimeMillis = 60_000 * 5;
         int aproxMessageSize = nextBatch(INSERT_PREFIX, numValuesInInsert).length();
 
         LOGGER.info("Values per insert: {}", numValuesInInsert);
         LOGGER.info("Aprox. message size: {}", aproxMessageSize);
-        LOGGER.info("Aprox. overall size: {}",
-                BigInteger.valueOf(aproxMessageSize).multiply(BigInteger.valueOf(numValuesInInsert)));
         LOGGER.info("Aprox. runtime millis: {}", aproxRuntimeMillis);
         LOGGER.info("Num. threads: {}", numThreads);
 
@@ -128,7 +125,7 @@ public class InsertValuesStressTest {
         es.shutdown();
 
         // Show results
-        System.out.println("Producing results");
+        LOGGER.info("Producing results");
         try (Connection conn = DriverManager.getConnection(CONNECTION_URL, CONNECTION_PROPS)) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("REFRESH TABLE sensors");
