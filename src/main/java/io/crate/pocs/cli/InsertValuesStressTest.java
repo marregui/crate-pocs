@@ -26,20 +26,15 @@ public class InsertValuesStressTest {
 
     public static String CONNECTION_URL = "jdbc:postgresql://localhost:5432/";
     public static Properties CONNECTION_PROPS = new Properties();
-
     static {
         CONNECTION_PROPS.put("user", "crate");
         CONNECTION_PROPS.put("password", "");
         CONNECTION_PROPS.put("sendBufferSize", 1024 * 1024 * 8);
     }
 
+    private static final String INSERT_PREFIX = "INSERT INTO doc.sensors(client_id, sensor_id, ts, value) VALUES";
     private static final List<Integer> CLIENT_IDS = IntStream.range(0, 21).boxed().collect(toList());
     private static final List<String> SENSOR_IDS = IntStream.range(0, 1000).mapToObj(i -> "sensor_" + i).collect(toList());
-    private static final String insertPrefix = "INSERT INTO doc.sensors(client_id, sensor_id, ts, value) VALUES";
-
-    // Runtime configuration
-
-
     private static final Logger LOGGER = LoggerFactory.getLogger(InsertValuesStressTest.class);
 
 
@@ -92,7 +87,7 @@ public class InsertValuesStressTest {
         int numThreads = 1;
         int numValuesInInsert = 50_000; // batch size
         long aproxRuntimeMillis = 30_000;
-        int aproxMessageSize = nextBatch(insertPrefix, numValuesInInsert).length();
+        int aproxMessageSize = nextBatch(INSERT_PREFIX, numValuesInInsert).length();
 
         LOGGER.info("Values per insert: {}", numValuesInInsert);
         LOGGER.info("Aprox. message size: {}", aproxMessageSize);
@@ -102,7 +97,6 @@ public class InsertValuesStressTest {
         LOGGER.info("Num. threads: {}", numThreads);
 
         Instant startTime = Instant.now();
-
         ExecutorService es = Executors.newFixedThreadPool(numThreads);
         CountDownLatch completedInserts = new CountDownLatch(numThreads);
 
@@ -116,7 +110,7 @@ public class InsertValuesStressTest {
                         LOGGER.info("Thread_{} inserting...", threadId);
                         AtomicBoolean timeoutSignal = setTrueOnTimeout(aproxRuntimeMillis);
                         while (!timeoutSignal.get()) {
-                            stmt.execute(nextBatch(insertPrefix, numValuesInInsert));
+                            stmt.execute(nextBatch(INSERT_PREFIX, numValuesInInsert));
                         }
                         conn.commit();
                     }
