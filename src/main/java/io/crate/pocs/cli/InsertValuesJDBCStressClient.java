@@ -21,7 +21,11 @@ import static java.util.stream.Collectors.toList;
  *              ts TIMESTAMPTZ,
  *              value DOUBLE PRECISION INDEX OFF,
  *              PRIMARY KEY (client_id, sensor_id, ts))
- *     CLUSTERED INTO 6 SHARDS;
+ *     CLUSTERED INTO 6 SHARDS
+ *     WITH (
+ *         refresh_interval = 5000,
+ *         number_of_replicas = '0'
+ *     );
  */
 public class InsertValuesJDBCStressClient {
 
@@ -109,7 +113,7 @@ public class InsertValuesJDBCStressClient {
 
     public static void main(String[] args) throws Exception {
 
-        int numThreads = 6;
+        int numThreads = 9;
         int numValuesInInsert = 1_000;
         long aproxRuntimeMillis = 60_000 * 3;
         int aproxMessageSize = nextBatch(INSERT_PREFIX, numValuesInInsert).length();
@@ -126,10 +130,9 @@ public class InsertValuesJDBCStressClient {
         // Insert data in parallel
         ConnectionProvider connProvider = new ConnectionProvider();
         for (int i = 0; i < numThreads; i++) {
-            int threadId = i;
+            int threadId = i + 1;
             es.submit(() -> {
                 try (Connection conn = connProvider.getRoundRobinConnection()) {
-
                     conn.setAutoCommit(false);
                     try (Statement stmt = conn.createStatement()) {
                         LOGGER.info("Thread_{} inserting...", threadId);
@@ -171,7 +174,11 @@ public class InsertValuesJDBCStressClient {
                     }
                 }
             }
-            throw new IllegalStateException("should never reach here");
         }
+        throw new IllegalStateException("should never reach here");
+
+        // On my MacBook Pro (on a Vanilla Cluster https://github.com/marregui/crate-vanilla-cluster):
+        //   Inserts: 889999, millis: 181205, IPS: 4911.56
+        //   Inserts: 1945053, millis: 181393, IPS: 10722.87
     }
 }
