@@ -9,6 +9,7 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
@@ -19,22 +20,15 @@ import static java.util.stream.Collectors.toList;
  *              sensor_id TEXT,
  *              ts TIMESTAMPTZ,
  *              value DOUBLE PRECISION INDEX OFF,
- *              PRIMARY KEY (client_id, sensor_id, ts));
+ *              PRIMARY KEY (client_id, sensor_id, ts))
+ *     CLUSTERED INTO 6 SHARDS;
  */
-public class InsertValuesStressTest {
-
-    public static String CONNECTION_URL = "jdbc:postgresql://localhost:5432/";
-    public static Properties CONNECTION_PROPS = new Properties();
-    static {
-        CONNECTION_PROPS.put("user", "crate");
-        CONNECTION_PROPS.put("password", "");
-        CONNECTION_PROPS.put("sendBufferSize", 1024 * 1024 * 8);
-    }
+public class InsertValuesJDBCStressClient {
 
     private static final String INSERT_PREFIX = "INSERT INTO doc.sensors(client_id, sensor_id, ts, value) VALUES";
     private static final List<Integer> CLIENT_IDS = IntStream.range(0, 21).boxed().collect(toList());
     private static final List<String> SENSOR_IDS = IntStream.range(0, 1000).mapToObj(i -> "sensor_" + i).collect(toList());
-    private static final Logger LOGGER = LoggerFactory.getLogger(InsertValuesStressTest.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(InsertValuesJDBCStressClient.class);
 
 
     public static String nextBatch(String insertPrefix, int numValuesInInsert) {
@@ -81,11 +75,43 @@ public class InsertValuesStressTest {
         return list.get(ThreadLocalRandom.current().nextInt(list.size()));
     }
 
+    private static class ConnectionProvider {
+
+        private static String URL_TPT = "jdbc:postgresql://localhost:{}/";
+        private static int [] PORTS = { 5432, 5433, 5434 };
+        private static Properties PROPS = new Properties();
+        static {
+            PROPS.put("user", "crate");
+            PROPS.put("password", "");
+            PROPS.put("sendBufferSize", 1024 * 1024 * 8);
+        }
+
+        private final AtomicInteger idx;
+
+        private ConnectionProvider() {
+            idx = new AtomicInteger(0);
+        }
+
+        private Connection getRoundRobinConnection() {
+            for (int i = 0; i < PORTS.length; i++) {
+                int port = PORTS[idx.getAndIncrement() % PORTS.length];
+                String connUrl = URL_TPT.replace("{}", String.valueOf(port));
+                try {
+                    LOGGER.info("Connecting with: {}", connUrl);
+                    return DriverManager.getConnection(connUrl, PROPS);
+                } catch (SQLException t) {
+                    LOGGER.info("Could not reach: {}", connUrl);
+                }
+            }
+            throw new RuntimeException("CrateDB is unreachable");
+        }
+    }
+
     public static void main(String[] args) throws Exception {
 
-        int numThreads = 1;
-        int numValuesInInsert = 20_000; // batch size
-        long aproxRuntimeMillis = 60_000 * 5;
+        int numThreads = 6;
+        int numValuesInInsert = 1_000;
+        long aproxRuntimeMillis = 60_000 * 3;
         int aproxMessageSize = nextBatch(INSERT_PREFIX, numValuesInInsert).length();
 
         LOGGER.info("Values per insert: {}", numValuesInInsert);
@@ -98,10 +124,12 @@ public class InsertValuesStressTest {
         CountDownLatch completedInserts = new CountDownLatch(numThreads);
 
         // Insert data in parallel
+        ConnectionProvider connProvider = new ConnectionProvider();
         for (int i = 0; i < numThreads; i++) {
             int threadId = i;
             es.submit(() -> {
-                try (Connection conn = DriverManager.getConnection(CONNECTION_URL, CONNECTION_PROPS)) {
+                try (Connection conn = connProvider.getRoundRobinConnection()) {
+
                     conn.setAutoCommit(false);
                     try (Statement stmt = conn.createStatement()) {
                         LOGGER.info("Thread_{} inserting...", threadId);
@@ -126,7 +154,7 @@ public class InsertValuesStressTest {
 
         // Show results
         LOGGER.info("Producing results");
-        try (Connection conn = DriverManager.getConnection(CONNECTION_URL, CONNECTION_PROPS)) {
+        try (Connection conn = connProvider.getRoundRobinConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("REFRESH TABLE sensors");
                 long totalMillis = ChronoUnit.MILLIS.between(startTime, Instant.now());
