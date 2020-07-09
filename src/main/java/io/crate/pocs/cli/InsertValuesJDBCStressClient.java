@@ -53,7 +53,7 @@ public class InsertValuesJDBCStressClient {
         return sb.toString();
     }
 
-    private static final String quoted(String s) {
+    private static String quoted(String s) {
         return "'" + s + "'";
     }
 
@@ -81,9 +81,9 @@ public class InsertValuesJDBCStressClient {
 
     private static class ConnectionProvider {
 
-        private static String URL_TPT = "jdbc:postgresql://localhost:{}/";
-        private static int [] PORTS = { 5432, 5433, 5434 };
-        private static Properties PROPS = new Properties();
+        private static final String URL_TPT = "jdbc:postgresql://localhost:{}/";
+        private static final int [] PORTS = { 5432, 5433, 5434 };
+        private static final Properties PROPS = new Properties();
         static {
             PROPS.put("user", "crate");
             PROPS.put("password", "");
@@ -113,7 +113,7 @@ public class InsertValuesJDBCStressClient {
 
     public static void main(String[] args) throws Exception {
 
-        int numThreads = 9;
+        int numThreads = 3;
         int numValuesInInsert = 1_000;
         long aproxRuntimeMillis = 60_000 * 3;
         int aproxMessageSize = nextBatch(INSERT_PREFIX, numValuesInInsert).length();
@@ -178,7 +178,10 @@ public class InsertValuesJDBCStressClient {
         throw new IllegalStateException("should never reach here");
 
         // On my MacBook Pro (on a Vanilla Cluster https://github.com/marregui/crate-vanilla-cluster):
-        //   Inserts: 889999, millis: 181205, IPS: 4911.56
         //   Inserts: 1945053, millis: 181393, IPS: 10722.87
+        // When running against a single node:
+        //   Inserts: 1565349, millis: 180455, IPS: 8674.46
+
+
     }
 }

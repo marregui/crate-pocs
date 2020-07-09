@@ -10,7 +10,7 @@ java {
 }
 
 application {
-    mainClassName = 'io.crate.pocs.cli.InsertValuesStressTest'
+    mainClassName = 'io.crate.pocs.cli.InsertValuesJDBCStressClient'
 }
 
 repositories {
@@ -23,13 +23,12 @@ description = 'CreateDB POCs'
 
 dependencies {
     implementation 'org.postgresql:postgresql:42.2.9'
-    implementation 'com.google.code.gson:gson:2.8.6'
     implementation 'org.apache.logging.log4j:log4j-slf4j-impl:2.13.0'
 }
 
 jar {
     manifest {
-        attributes "Main-Class": "io.crate.pocs.cli.InsertValuesStressTest"
+        attributes "Main-Class": "io.crate.pocs.cli.InsertValuesJDBCStressClient"
     }
  
     from {
