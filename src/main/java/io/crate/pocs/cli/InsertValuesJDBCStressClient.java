@@ -14,19 +14,10 @@ import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
 
-/**
- * CREATE TABLE IF NOT EXISTS sensors (
- *              client_id INTEGER,
- *              sensor_id TEXT,
- *              ts TIMESTAMPTZ,
- *              value DOUBLE PRECISION INDEX OFF,
- *              PRIMARY KEY (client_id, sensor_id, ts))
- *     CLUSTERED INTO 6 SHARDS
- *     WITH (
- *         refresh_interval = 5000,
- *         number_of_replicas = '0'
- *     );
- */
+// On my MacBook Pro (on a https://github.com/marregui/crate-vanilla-cluster):
+//   Inserts: 1945053, millis: 181393, IPS: 10722.87
+// When running single node:
+//   Inserts: 13434585, millis: 180436, IPS: 74456.23
 public class InsertValuesJDBCStressClient {
 
     private static final String INSERT_PREFIX = "INSERT INTO doc.sensors(client_id, sensor_id, ts, value) VALUES";
@@ -113,21 +104,19 @@ public class InsertValuesJDBCStressClient {
 
     public static void main(String[] args) throws Exception {
 
-        int numThreads = 3;
+        int numThreads = 9;
         int numValuesInInsert = 1_000;
         long aproxRuntimeMillis = 60_000 * 3;
         int aproxMessageSize = nextBatch(INSERT_PREFIX, numValuesInInsert).length();
 
         LOGGER.info("Values per insert: {}", numValuesInInsert);
-        LOGGER.info("Aprox. message size: {}", aproxMessageSize);
+        LOGGER.info("Aprox. insert size: {}", aproxMessageSize);
         LOGGER.info("Aprox. runtime millis: {}", aproxRuntimeMillis);
         LOGGER.info("Num. threads: {}", numThreads);
 
         Instant startTime = Instant.now();
         ExecutorService es = Executors.newFixedThreadPool(numThreads);
         CountDownLatch completedInserts = new CountDownLatch(numThreads);
-
-        // Insert data in parallel
         ConnectionProvider connProvider = new ConnectionProvider();
         for (int i = 0; i < numThreads; i++) {
             int threadId = i + 1;
@@ -150,12 +139,9 @@ public class InsertValuesJDBCStressClient {
                 }
             });
         }
-
-        // Wait for all the inserts to be delivered
         completedInserts.await();
         es.shutdown();
 
-        // Show results
         LOGGER.info("Producing results");
         try (Connection conn = connProvider.getRoundRobinConnection()) {
             try (Statement stmt = conn.createStatement()) {
@@ -176,12 +162,5 @@ public class InsertValuesJDBCStressClient {
             }
         }
         throw new IllegalStateException("should never reach here");
-
-        // On my MacBook Pro (on a Vanilla Cluster https://github.com/marregui/crate-vanilla-cluster):
-        //   Inserts: 1945053, millis: 181393, IPS: 10722.87
-        // When running against a single node:
-        //   Inserts: 1565349, millis: 180455, IPS: 8674.46
-
-
     }
 }
