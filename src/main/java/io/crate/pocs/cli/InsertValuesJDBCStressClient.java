@@ -15,7 +15,7 @@ import java.util.stream.IntStream;
 import static java.util.stream.Collectors.toList;
 
 // On my MacBook Pro (on a https://github.com/marregui/crate-vanilla-cluster):
-//   Inserts: 1945053, millis: 181393, IPS: 10722.87
+//   Inserts: 9129279, millis: 180603, IPS: 50548.88
 // When running single node:
 //   Inserts: 13434585, millis: 180436, IPS: 74456.23
 public class InsertValuesJDBCStressClient {
