@@ -10,7 +10,7 @@ java {
 }
 
 application {
-    mainClassName = 'io.crate.pocs.cli.InsertValuesJDBCStressClient'
+    mainClassName = 'io.crate.pocs.cli.MainClient'
 }
 
 repositories {
@@ -28,7 +28,7 @@ dependencies {
 
 jar {
     manifest {
-        attributes "Main-Class": "io.crate.pocs.cli.InsertValuesJDBCStressClient"
+        attributes "Main-Class": "io.crate.pocs.cli.MainClient"
     }
  
     from {
@@ -54,6 +54,6 @@ artifacts {
 }
 
 wrapper {
-    gradleVersion = '6.3'
+    gradleVersion = '6.5'
 }
 
