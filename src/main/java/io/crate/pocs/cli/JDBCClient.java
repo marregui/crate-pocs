@@ -31,14 +31,17 @@ public abstract class JDBCClient implements Closeable {
 
     public static void timedInsertRun(int millis, JDBCClient client, boolean cleanTable) throws SQLException {
         try(client) {
-            LOGGER.info("Insert activity will be {} millis with {}", millis, client.urlTpt().replace("{}", ""));
+            LOGGER.info("Insert activity will be {} millis with {}", millis, client.url());
+            long currentCount = 0L;
             if (cleanTable) {
                 client.prepareTable();
+            } else {
+                currentCount = client.count();
             }
             Instant startTime = Instant.now();
             AtomicBoolean timeoutSignal = setTrueOnTimeout(millis);
             client.insertWhile(() -> !timeoutSignal.get());
-            client.logResults(startTime);
+            client.logResults(startTime, currentCount);
         }
     }
 
@@ -90,8 +93,8 @@ public abstract class JDBCClient implements Closeable {
         return numThreads;
     }
 
-    public String urlTpt() {
-        return urlTpt;
+    public String url() {
+        return urlTpt.replace("{}", "");
     }
 
     private static final AtomicInteger RR_CONN_IDX = new AtomicInteger();
@@ -119,6 +122,20 @@ public abstract class JDBCClient implements Closeable {
                 stmt.execute(createTableStmt());
             }
         }
+    }
+
+    public long count() throws SQLException {
+        try (Connection conn = getRoundRobinConnection()) {
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("REFRESH TABLE " + tableName());
+                stmt.execute("SELECT count(*) FROM " + tableName());
+                ResultSet rs = stmt.getResultSet();
+                if (rs.next()) {
+                    return rs.getLong(1);
+                }
+            }
+        }
+        throw new IllegalStateException("should never reach here");
     }
 
     public void insertWhile(Supplier<Boolean> predicate) throws SQLException {
@@ -149,31 +166,22 @@ public abstract class JDBCClient implements Closeable {
         }
     }
 
-    public void logResults(Instant startTime) throws SQLException {
+    public void logResults(Instant startTime, long preRunCount) throws SQLException {
         LOGGER.info("Results for table: {}", tableName());
+        LOGGER.info("   Host: {}", url());
         LOGGER.info("   Insert prefix: {}", insertPrefix());
         LOGGER.info("   Values per insert: {}", numValuesInInsert());
         LOGGER.info("   Aprox. insert size: {}", nextBatch().length());
         LOGGER.info("   Num. threads: {}", numThreads());
-        try (Connection conn = getRoundRobinConnection()) {
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("REFRESH TABLE " + tableName());
-                long totalMillis = ChronoUnit.MILLIS.between(startTime, Instant.now());
-                if (stmt.execute("SELECT count(*) FROM " + tableName())) {
-                    ResultSet rs = stmt.getResultSet();
-                    if (rs.next()) {
-                        int count = rs.getInt(1);
-                        LOGGER.info(
-                                ">> inserts: {}, elapsed ms: {}, IPS: {}",
-                                count,
-                                totalMillis,
-                                Math.round((count * 100_000.0) / totalMillis) / 100.0);
-                        return;
-                    }
-                }
-            }
-        }
-        throw new IllegalStateException("should never reach here");
+        LOGGER.info("   Pre run count: {}", preRunCount);
+        long count = count() ;
+        LOGGER.info("   Post run count: {}", count);
+        count = count - preRunCount;
+        long totalMillis = ChronoUnit.MILLIS.between(startTime, Instant.now());
+        LOGGER.info(">> Inserts: {}, Elapsed (ms): {}, IPS: {}",
+                count,
+                totalMillis,
+                Math.round((count * 100_000.0) / totalMillis) / 100.0);
     }
 
     @Override
