@@ -1,4 +1,4 @@
-# Crate POCs
+# CrateDB stress JDBC insert client
 
 **InsertValuesJDBCStressClient** is a JDBC Java client that connects to CrateDB using 
 the stock Postgres JDBC driver (for your convenience a copy of the jar can be found in 
