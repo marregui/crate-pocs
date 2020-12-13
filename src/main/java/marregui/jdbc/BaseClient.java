@@ -22,6 +22,7 @@ import org.slf4j.LoggerFactory;
 
 import java.io.Closeable;
 import java.sql.*;
+import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -36,14 +37,15 @@ public abstract class BaseClient implements Closeable {
     private final ThreadPoolExecutor executor;
 
     public BaseClient(ConnectionFactory conns, int numThreads, int numValuesInInsert) {
-        this.conns = conns;
+        this.conns = Objects.requireNonNull(conns);
         this.numThreads = numThreads;
         this.numValuesInInsert = numValuesInInsert;
         AtomicInteger threadId = new AtomicInteger();
         ThreadFactory threadFactory = Executors.defaultThreadFactory();
+        String threadNamePrefix = getClass().getSimpleName();
         executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(numThreads, runnable -> {
             Thread thread = threadFactory.newThread(runnable);
-            thread.setName(String.format("PostgresClient%s", threadId.getAndIncrement()));
+            thread.setName(String.format("%s%s", threadNamePrefix, threadId.getAndIncrement()));
             thread.setDaemon(true);
             return thread;
         });
@@ -52,8 +54,6 @@ public abstract class BaseClient implements Closeable {
     public abstract String tableName();
 
     public abstract String createTableStmt();
-
-    public abstract String dropTableStmt();
 
     public abstract String insertPrefix();
 
@@ -75,10 +75,11 @@ public abstract class BaseClient implements Closeable {
         try (Connection conn = conns.newConnection()) {
             try (Statement stmt = conn.createStatement()) {
                 LOGGER.info("Dropping table: {}", tableName());
-                stmt.execute(dropTableStmt());
+                stmt.execute("DROP TABLE IF EXISTS " + tableName());
                 LOGGER.info("Creating table: {}", tableName());
                 stmt.execute(createTableStmt());
             }
+            conn.commit();
         }
     }
 

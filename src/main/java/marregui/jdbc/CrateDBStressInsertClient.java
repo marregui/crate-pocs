@@ -63,11 +63,6 @@ public class CrateDBStressInsertClient extends BaseClient {
     }
 
     @Override
-    public String dropTableStmt() {
-        return "DROP TABLE IF EXISTS doc.sensors";
-    }
-
-    @Override
     public String nextBatch() {
         ThreadLocalRandom rand = ThreadLocalRandom.current();
         StringBuilder sb = new StringBuilder(insertPrefix());

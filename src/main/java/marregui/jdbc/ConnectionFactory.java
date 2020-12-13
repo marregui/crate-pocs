@@ -64,7 +64,7 @@ public class ConnectionFactory {
         return uri;
     }
 
-    public Connection newConnection() {
+    public Connection newConnection() throws SQLException {
         for (int i = 0; i < ports.length; i++) {
             int port = ports[Math.abs(RR_CONN_IDX.getAndIncrement() % ports.length)];
             String connUri = uriTpt.replace("{}", String.valueOf(port));
@@ -78,6 +78,6 @@ public class ConnectionFactory {
                 // move on to the next port
             }
         }
-        throw new RuntimeException("Database is unreachable");
+        throw new SQLException("Database is unreachable");
     }
 }

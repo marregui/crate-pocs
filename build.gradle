@@ -27,7 +27,7 @@ java {
 }
 
 application {
-    mainClassName = 'io.crate.pocs.cli.MainClient'
+    mainClassName = 'marregui.jdbc.CrateDBStressInsertClient'
 }
 
 repositories {
