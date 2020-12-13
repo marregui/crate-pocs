@@ -6,3 +6,4 @@ store
 *.iws
 *.iml
 *.ipr
+.idea/

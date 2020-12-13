@@ -19,7 +19,8 @@ repositories {
 
 group = 'io.crate.pocs.cli'
 version = '1.0.0-SNAPSHOT'
-description = 'CreateDB POCs'
+description = "Stress JDBC client to Postgres compatible databases." +
+              "Reports ingest throughput from client's perspective."
 
 dependencies {
     implementation 'org.postgresql:postgresql:42.2.9'
@@ -54,6 +55,6 @@ artifacts {
 }
 
 wrapper {
-    gradleVersion = '6.5'
+    gradleVersion = '6.7.1'
 }
 
