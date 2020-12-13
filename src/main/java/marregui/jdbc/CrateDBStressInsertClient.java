@@ -24,12 +24,12 @@ import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
 
-public class StressInsertClient extends BaseClient {
+public class CrateDBStressInsertClient extends BaseClient {
 
     private static final List<Integer> CLIENT_IDS = IntStream.range(0, 21).boxed().collect(toList());
     private static final List<String> SENSOR_IDS = IntStream.range(0, 1000).mapToObj(i -> "sensor_" + i).collect(toList());
 
-    public StressInsertClient(int numValuesInInsert, int numThreads) {
+    public CrateDBStressInsertClient(int numValuesInInsert, int numThreads) {
         super(new ConnectionFactory(), numValuesInInsert, numThreads);
     }
 
@@ -95,6 +95,6 @@ public class StressInsertClient extends BaseClient {
     }
 
     public static void main(String[] args) throws Exception {
-        ClientTools.timedInsertRun(new StressInsertClient(1_000,9), 5_000, true);
+        ClientTools.timedInsertRun(new CrateDBStressInsertClient(1_000,9), 5_000, true);
     }
 }
