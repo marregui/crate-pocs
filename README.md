@@ -1,6 +1,6 @@
-# CrateDB stress JDBC insert client
+# JDBC stress insert client
 
-**InsertValuesJDBCStressClient** is a JDBC Java client that connects to CrateDB using 
+**InsertValuesJDBCStressClient** is a JDBC, Java, client that connects to CrateDB using 
 the stock Postgres JDBC driver (for your convenience a copy of the jar can be found in 
 the ``libs`` folder) and sends random batched inserts at full speed, to populate a table 
 (which must exist upfront, and be void of data):
@@ -40,10 +40,10 @@ in milliseconds.
 - Do not use JDBC's ``addBatch``, ``executeBatch``, this is very slow, one, 
   possibly two, orders of magnitude slower by comparison. **Instead** create 
   the inserts as described in the code.
-- The ``sendBufferSize``, outbound socket buffer size, matters, the more, the 
-  better.
+- The ``sendBufferSize``, outbound socket buffer size, parameter can be increased
+  for better performance.
 - The ``numValuesInInsert``, number of values appended to each of the insert 
-  statements, matters, the more, the better.
+  statements, parameter can be increased for better performance.
 
 ## Run
 
@@ -55,3 +55,4 @@ Either:
 or
 
 - ./gradlew run
+
