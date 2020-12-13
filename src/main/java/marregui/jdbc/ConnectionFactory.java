@@ -27,12 +27,16 @@ import java.util.Objects;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Factory for Jdbc connections.
+ */
 public class ConnectionFactory {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(ConnectionFactory.class);
 
     private static final String DEFAULT_URI_TPT = "jdbc:postgresql://localhost:{}/";
     private static final int[] DEFAULT_PORTS = {5432, 5433, 5434};
+    private static final AtomicInteger RR_CONN_IDX = new AtomicInteger();
     private static final Properties DEFAULT_PROPS = new Properties();
 
     static {
@@ -41,13 +45,11 @@ public class ConnectionFactory {
         DEFAULT_PROPS.put("sendBufferSize", 1024 * 1024 * 8); // 8MB
     }
 
-    private static final AtomicInteger RR_CONN_IDX = new AtomicInteger();
 
     private final String uriTpt;
     private final String uri;
-    private final int[] ports;
+    private final String[] ports;
     private final Properties connProps;
-
 
     public ConnectionFactory() {
         this(DEFAULT_URI_TPT, DEFAULT_PORTS, DEFAULT_PROPS);
@@ -56,8 +58,12 @@ public class ConnectionFactory {
     public ConnectionFactory(String uriTpt, int[] ports, Properties connProps) {
         this.uriTpt = Objects.requireNonNull(uriTpt);
         uri = uriTpt.replace("{}", "");
-        this.ports = Objects.requireNonNull(ports);
         this.connProps = Objects.requireNonNull(connProps);
+        Objects.requireNonNull(ports);
+        this.ports = new String[ports.length];
+        for (int i = 0; i < ports.length; i++) {
+            this.ports[i] = String.valueOf(ports[i]);
+        }
     }
 
     public String uri() {
@@ -65,16 +71,19 @@ public class ConnectionFactory {
     }
 
     public Connection newConnection() throws SQLException {
+        return newConnection(false);
+    }
+
+    public Connection newConnection(boolean isRoundRobin) throws SQLException {
         for (int i = 0; i < ports.length; i++) {
-            int port = ports[Math.abs(RR_CONN_IDX.getAndIncrement() % ports.length)];
+            int idx = isRoundRobin ? Math.abs(RR_CONN_IDX.getAndIncrement() % ports.length) : i;
+            String port = ports[idx];
             String connUri = uriTpt.replace("{}", String.valueOf(port));
             try {
                 LOGGER.info("Connecting to: {}", connUri);
-                Connection conn = DriverManager.getConnection(connUri, connProps);
-                conn.setAutoCommit(false);
-                return conn;
+                return DriverManager.getConnection(connUri, connProps);
             } catch (SQLException t) {
-                LOGGER.error(" >> failed to connect to: {}", connUri);
+                LOGGER.warn(" >> failed to connect to: {}", connUri);
                 // move on to the next port
             }
         }

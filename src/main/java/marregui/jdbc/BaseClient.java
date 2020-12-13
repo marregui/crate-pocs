@@ -32,18 +32,19 @@ public abstract class BaseClient implements Closeable {
     static final Logger LOGGER = LoggerFactory.getLogger(BaseClient.class);
 
     private final ConnectionFactory conns;
-    private final int numThreads;
-    private final int numValuesInInsert;
+    private final int numInsertAgents;
+    private final int batchSize;
     private final ThreadPoolExecutor executor;
+    private volatile Connection adminConnection;
 
-    public BaseClient(ConnectionFactory conns, int numThreads, int numValuesInInsert) {
+    public BaseClient(ConnectionFactory conns, int numInsertAgents, int batchSize) {
         this.conns = Objects.requireNonNull(conns);
-        this.numThreads = numThreads;
-        this.numValuesInInsert = numValuesInInsert;
+        this.numInsertAgents = numInsertAgents;
+        this.batchSize = batchSize;
         AtomicInteger threadId = new AtomicInteger();
         ThreadFactory threadFactory = Executors.defaultThreadFactory();
         String threadNamePrefix = getClass().getSimpleName();
-        executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(numThreads, runnable -> {
+        executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(numInsertAgents, runnable -> {
             Thread thread = threadFactory.newThread(runnable);
             thread.setName(String.format("%s%s", threadNamePrefix, threadId.getAndIncrement()));
             thread.setDaemon(true);
@@ -63,44 +64,40 @@ public abstract class BaseClient implements Closeable {
         return conns.uri();
     }
 
-    public int numValuesInInsert() {
-        return numValuesInInsert;
+    public int numInsertAgents() {
+        return numInsertAgents;
     }
 
-    public int numThreads() {
-        return numThreads;
+    public int batchSize() {
+        return batchSize;
     }
 
     public void prepareTable() throws SQLException {
-        try (Connection conn = conns.newConnection()) {
-            try (Statement stmt = conn.createStatement()) {
-                LOGGER.info("Dropping table: {}", tableName());
-                stmt.execute("DROP TABLE IF EXISTS " + tableName());
-                LOGGER.info("Creating table: {}", tableName());
-                stmt.execute(createTableStmt());
-            }
-            conn.commit();
+        checkAdminConnection();
+        try (Statement stmt = adminConnection.createStatement()) {
+            LOGGER.info("Dropping then Creating table: {}", tableName());
+            stmt.execute("DROP TABLE IF EXISTS " + tableName());
+            stmt.execute(createTableStmt());
         }
     }
 
     public long count() throws SQLException {
-        try (Connection conn = conns.newConnection()) {
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("REFRESH TABLE " + tableName());
-                stmt.execute("SELECT count(*) FROM " + tableName());
-                ResultSet rs = stmt.getResultSet();
-                if (rs.next()) {
-                    return rs.getLong(1);
-                }
+        checkAdminConnection();
+        try (Statement stmt = adminConnection.createStatement()) {
+            stmt.execute("REFRESH TABLE " + tableName());
+            stmt.execute("SELECT count(*) FROM " + tableName());
+            ResultSet rs = stmt.getResultSet();
+            if (rs.next()) {
+                return rs.getLong(1);
             }
         }
         throw new IllegalStateException("should never reach here");
     }
 
-    public void insertWhile(Supplier<Boolean> predicate) throws SQLException {
-        CountDownLatch completedInserts = new CountDownLatch(numThreads());
-        LOGGER.info("Launching {} insert threads", numThreads());
-        for (int i = 0; i < numThreads(); i++) {
+    public void stressInsertWhile(Supplier<Boolean> predicate) throws SQLException {
+        CountDownLatch completedInserts = new CountDownLatch(numInsertAgents());
+        LOGGER.info("Launching {} insert agents", numInsertAgents());
+        for (int i = 0; i < numInsertAgents(); i++) {
             executor.submit(() -> {
                 try (Connection conn = conns.newConnection()) {
                     conn.setAutoCommit(false);
@@ -125,8 +122,21 @@ public abstract class BaseClient implements Closeable {
         }
     }
 
+    private synchronized void checkAdminConnection() throws SQLException {
+        if (adminConnection == null || adminConnection.isClosed()) {
+            adminConnection = conns.newConnection();
+        }
+    }
+
     @Override
     public void close() {
+        if (adminConnection != null) {
+            try {
+                adminConnection.close();
+            } catch (SQLException e) {
+                LOGGER.warn("Failed to close admin connection", e);
+            }
+        }
         executor.shutdownNow();
         try {
             executor.awaitTermination(200L, TimeUnit.MILLISECONDS);

@@ -17,20 +17,30 @@
 
 package marregui.jdbc;
 
+import java.sql.SQLException;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 
-import static java.util.stream.Collectors.toList;
+import java.util.stream.Collectors;
 
 public class CrateDBStressInsertClient extends BaseClient {
 
-    private static final List<Integer> CLIENT_IDS = IntStream.range(0, 21).boxed().collect(toList());
-    private static final List<String> SENSOR_IDS = IntStream.range(0, 1000).mapToObj(i -> "sensor_" + i).collect(toList());
+    private static final List<Integer> CLIENT_IDS = IntStream
+            .range(0, 21)
+            .boxed()
+            .collect(Collectors.toList());
+    private static final List<String> SENSOR_IDS = IntStream
+            .range(0, 1000)
+            .mapToObj(i -> "sensor_" + i)
+            .collect(Collectors.toList());
 
-    public CrateDBStressInsertClient(int numValuesInInsert, int numThreads) {
-        super(new ConnectionFactory(), numValuesInInsert, numThreads);
+
+    public CrateDBStressInsertClient(int numInsertAgents, int batchSize) {
+        super(new ConnectionFactory(), numInsertAgents, batchSize);
     }
 
     @Override
@@ -52,7 +62,7 @@ public class CrateDBStressInsertClient extends BaseClient {
                 "               value DOUBLE PRECISION INDEX OFF," +
                 "               PRIMARY KEY (client_id, sensor_id, ts)" +
                 "        )" +
-                "        CLUSTERED INTO 6 SHARDS" +
+                "        CLUSTERED INTO 1 SHARDS" +
                 "        WITH (" +
                 "               number_of_replicas = 0," +
                 "               \"translog.durability\" = 'ASYNC'," +
@@ -66,11 +76,11 @@ public class CrateDBStressInsertClient extends BaseClient {
     public String nextBatch() {
         ThreadLocalRandom rand = ThreadLocalRandom.current();
         StringBuilder sb = new StringBuilder(insertPrefix());
-        for (int i = 0; i < numValuesInInsert(); i++) {
+        for (int i = 0; i < batchSize(); i++) {
             sb.append("(")
-                    .append(randOf(CLIENT_IDS))
+                    .append(randOf(rand, CLIENT_IDS))
                     .append(",")
-                    .append(quoted(randOf(SENSOR_IDS)))
+                    .append(quoted(randOf(rand, SENSOR_IDS)))
                     .append(",")
                     .append(quoted(Instant.now().toString()))
                     .append(",")
@@ -81,15 +91,59 @@ public class CrateDBStressInsertClient extends BaseClient {
         return sb.toString();
     }
 
-    private static <T> T randOf(List<T> list) {
-        return list.get(ThreadLocalRandom.current().nextInt(list.size()));
+    public static void logResults(BaseClient client, Instant startTime, long preRunCount) throws SQLException {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Results for table: ").append(client.tableName()).append("\n");
+        sb.append("   Host: ").append(client.uri()).append("\n");
+        sb.append("   Insert prefix: ").append(client.insertPrefix()).append("\n");
+        sb.append("   Values per insert: ").append(client.batchSize()).append("\n");
+        sb.append("   Aprox. insert size: ").append(client.nextBatch().length()).append("\n");
+        sb.append("   Num. threads: ").append(client.numInsertAgents()).append("\n");
+        sb.append("   Pre run count: ").append(preRunCount).append("\n");
+        long count = client.count();
+        sb.append("   Post run count: ").append(count).append("\n");
+        count = count - preRunCount;
+        long totalMillis = ChronoUnit.MILLIS.between(startTime, Instant.now());
+        sb.append(">> Inserts: ").append(count)
+                .append(", Elapsed (ms): ").append(totalMillis)
+                .append(", IPS: ").append(Math.round((count * 100_000.0) / totalMillis) / 100.0);
+        LOGGER.info(sb.toString());
+    }
+
+    private static <T> T randOf(ThreadLocalRandom rand, List<T> list) {
+        return list.get(rand.nextInt(list.size()));
     }
 
     private static String quoted(String s) {
         return "'" + s + "'";
     }
 
+    private static AtomicBoolean trueOnTimeoutSignal(long delayMillis) {
+        AtomicBoolean signal = new AtomicBoolean();
+        Timer timer = new Timer(true);
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                signal.set(true);
+                timer.cancel();
+                timer.purge();
+            }
+        }, delayMillis);
+        return signal;
+    }
+
     public static void main(String[] args) throws Exception {
-        ClientTools.timedInsertRun(new CrateDBStressInsertClient(1_000,9), 5_000, true);
+        int numInsertAgents = 10;
+        int batchSize = 200;
+        long duration = 7_000L;
+        try (CrateDBStressInsertClient client = new CrateDBStressInsertClient(numInsertAgents, batchSize)) {
+            LOGGER.info("Insert during {} millis into {}", duration, client.uri());
+            long preRunCount = 0L;
+            client.prepareTable();
+            Instant startTime = Instant.now();
+            AtomicBoolean timeoutSignal = trueOnTimeoutSignal(duration);
+            client.stressInsertWhile(() -> !timeoutSignal.get());
+            logResults(client, startTime, preRunCount);
+        }
     }
 }
