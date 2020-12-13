@@ -1,6 +1,6 @@
 # JDBC stress insert client
 
-**InsertValuesJDBCStressClient** is a JDBC, Java, client that connects to CrateDB using 
+**StressInsertClient** is a JDBC, Java, client that connects to CrateDB using 
 the stock Postgres JDBC driver (for your convenience a copy of the jar can be found in 
 the ``libs`` folder) and sends random batched inserts at full speed, to populate a table 
 (which must exist upfront, and be void of data):

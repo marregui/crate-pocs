@@ -15,9 +15,7 @@
  * Copyright 2020, Miguel Arregui a.k.a. marregui
  */
 
-package marregui.jdbc.insert;
-
-import marregui.jdbc.JdbcBaseClient;
+package marregui.jdbc;
 
 import java.time.Instant;
 import java.util.*;
@@ -26,14 +24,13 @@ import java.util.stream.IntStream;
 
 import static java.util.stream.Collectors.toList;
 
-
-public class Main extends JdbcBaseClient {
+public class StressInsertClient extends BaseClient {
 
     private static final List<Integer> CLIENT_IDS = IntStream.range(0, 21).boxed().collect(toList());
     private static final List<String> SENSOR_IDS = IntStream.range(0, 1000).mapToObj(i -> "sensor_" + i).collect(toList());
 
-    public Main(int numValuesInInsert, int numThreads) {
-        super(numValuesInInsert, numThreads);
+    public StressInsertClient(int numValuesInInsert, int numThreads) {
+        super(new ConnectionFactory(), numValuesInInsert, numThreads);
     }
 
     @Override
@@ -66,6 +63,11 @@ public class Main extends JdbcBaseClient {
     }
 
     @Override
+    public String dropTableStmt() {
+        return "DROP TABLE IF EXISTS doc.sensors";
+    }
+
+    @Override
     public String nextBatch() {
         ThreadLocalRandom rand = ThreadLocalRandom.current();
         StringBuilder sb = new StringBuilder(insertPrefix());
@@ -93,6 +95,6 @@ public class Main extends JdbcBaseClient {
     }
 
     public static void main(String[] args) throws Exception {
-        timedInsertRun(5_000, new Main(1_000,9), true);
+        ClientTools.timedInsertRun(new StressInsertClient(1_000,9), 5_000, true);
     }
 }

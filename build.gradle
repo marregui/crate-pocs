@@ -46,7 +46,7 @@ dependencies {
 
 jar {
     manifest {
-        attributes "Main-Class": "marregui.jdbc.insert.Main"
+        attributes "Main-Class": "marregui.jdbc.insert.StressInsertClient"
     }
  
     from {
