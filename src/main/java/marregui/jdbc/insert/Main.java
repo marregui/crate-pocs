@@ -1,4 +1,23 @@
-package io.crate.pocs.cli;
+/*
+ * Licensed to Miguel Arregui ("marregui") under one or more contributor
+ * license agreements. See the LICENSE file distributed with this work
+ * for additional information regarding copyright ownership. You may
+ * obtain a copy at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ *
+ * Copyright 2020, Miguel Arregui a.k.a. marregui
+ */
+
+package marregui.jdbc.insert;
+
+import marregui.jdbc.JdbcBaseClient;
 
 import java.time.Instant;
 import java.util.*;
@@ -8,12 +27,12 @@ import java.util.stream.IntStream;
 import static java.util.stream.Collectors.toList;
 
 
-public class MainClient extends JDBCClient {
+public class Main extends JdbcBaseClient {
 
     private static final List<Integer> CLIENT_IDS = IntStream.range(0, 21).boxed().collect(toList());
     private static final List<String> SENSOR_IDS = IntStream.range(0, 1000).mapToObj(i -> "sensor_" + i).collect(toList());
 
-    public MainClient(int numValuesInInsert, int numThreads) {
+    public Main(int numValuesInInsert, int numThreads) {
         super(numValuesInInsert, numThreads);
     }
 
@@ -74,6 +93,6 @@ public class MainClient extends JDBCClient {
     }
 
     public static void main(String[] args) throws Exception {
-        timedInsertRun(5_000, new MainClient(1_000,9), true);
+        timedInsertRun(5_000, new Main(1_000,9), true);
     }
 }

@@ -1,4 +1,21 @@
-package io.crate.pocs.cli;
+/*
+ * Licensed to Miguel Arregui ("marregui") under one or more contributor
+ * license agreements. See the LICENSE file distributed with this work
+ * for additional information regarding copyright ownership. You may
+ * obtain a copy at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.  See the
+ * License for the specific language governing permissions and limitations
+ * under the License.
+ *
+ * Copyright 2020, Miguel Arregui a.k.a. marregui
+ */
+
+package marregui.jdbc;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,10 +32,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
-// https://github.com/marregui/crate-vanilla-cluster
-public abstract class JDBCClient implements Closeable {
+public abstract class JdbcBaseClient implements Closeable {
 
-    static final Logger LOGGER = LoggerFactory.getLogger(JDBCClient.class);
+    static final Logger LOGGER = LoggerFactory.getLogger(JdbcBaseClient.class);
 
     private static final String DEFAULT_URL_TPT = "jdbc:postgresql://localhost:{}/";
     private static final int[] PORTS = {5432, 5433, 5434};
@@ -26,10 +42,10 @@ public abstract class JDBCClient implements Closeable {
     static {
         DEFAULT_PROPS.put("user", "crate");
         DEFAULT_PROPS.put("password", "");
-        DEFAULT_PROPS.put("sendBufferSize", 1024 * 1024 * 8);
+        DEFAULT_PROPS.put("sendBufferSize", 1024 * 1024 * 8); // 8MB
     }
 
-    public static void timedInsertRun(int millis, JDBCClient client, boolean cleanTable) throws SQLException {
+    public static void timedInsertRun(int millis, JdbcBaseClient client, boolean cleanTable) throws SQLException {
         try(client) {
             LOGGER.info("Insert activity will be {} millis with {}", millis, client.url());
             long currentCount = 0L;
@@ -65,11 +81,11 @@ public abstract class JDBCClient implements Closeable {
     private final int numThreads;
     private final ThreadPoolExecutor executor;
 
-    public JDBCClient(int numValuesInInsert, int numThreads) {
+    public JdbcBaseClient(int numValuesInInsert, int numThreads) {
         this(DEFAULT_URL_TPT, DEFAULT_PROPS, numValuesInInsert, numThreads);
     }
 
-    public JDBCClient(String urlTpt, Properties connProps, int numValuesInInsert, int numThreads) {
+    public JdbcBaseClient(String urlTpt, Properties connProps, int numValuesInInsert, int numThreads) {
         this.urlTpt = urlTpt;
         this.connProps = connProps;
         this.numValuesInInsert = numValuesInInsert;
@@ -110,7 +126,7 @@ public abstract class JDBCClient implements Closeable {
                 // move on to the next port
             }
         }
-        throw new RuntimeException("CrateDB is unreachable");
+        throw new RuntimeException("Database is unreachable");
     }
 
     public void prepareTable() throws SQLException {
